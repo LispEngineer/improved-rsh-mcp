@@ -10,19 +10,36 @@ import (
 	"github.com/tenox7/rsh-mcp/internal/rcmd"
 )
 
-func Execute(hostname, username, command, port string, maxLines, maxBytes int, tail bool) ([]byte, error) {
-	localUser, err := rcmd.LocalUser()
-	if err != nil {
-		return nil, err
+// Result carries Execute's output plus the connection bookkeeping callers
+// need for logging and diagnostics.
+type Result struct {
+	Output         []byte
+	SourcePort     int
+	PrivilegedPort bool
+	LocalUser      string
+	RemoteUser     string
+}
+
+// Execute runs command on hostname via RSH and returns its output (stdout;
+// stderr is not requested -- see rcmd.SendRequest, which is what keeps this
+// single-connection and tunnel-capable, unlike GNU rsh).
+func Execute(hostname, username, localUser, command, port string, maxLines, maxBytes int, tail bool) (*Result, error) {
+	var err error
+	if localUser == "" {
+		localUser, err = rcmd.LocalUser()
+		if err != nil {
+			return nil, err
+		}
 	}
 	if username == "" {
 		username = localUser
 	}
 
-	conn, err := rcmd.Dial(hostname, port)
+	dr, err := rcmd.Dial(hostname, port)
 	if err != nil {
 		return nil, err
 	}
+	conn := dr.Conn
 	defer conn.Close()
 
 	if err := rcmd.SendRequest(conn, localUser, username, command); err != nil {
@@ -54,17 +71,34 @@ func Execute(hostname, username, command, port string, maxLines, maxBytes int, t
 		}
 	}
 
+	// Command output almost always ends in a trailing newline, which
+	// bytes.Split turns into a spurious final empty "line"; without
+	// dropping it, /max_lines=N/tail=true would return N-1 real lines
+	// plus that empty one instead of the last N real lines.
+	trailingNewline := bytes.HasSuffix(result, []byte{'\n'})
 	lines := bytes.Split(result, []byte{'\n'})
+	if trailingNewline && len(lines) > 0 {
+		lines = lines[:len(lines)-1]
+	}
 	if len(lines) > maxLines {
 		if tail {
 			lines = lines[len(lines)-maxLines:]
 		} else {
 			lines = lines[:maxLines]
 		}
-		return bytes.Join(lines, []byte{'\n'}), nil
+	}
+	result = bytes.Join(lines, []byte{'\n'})
+	if trailingNewline {
+		result = append(result, '\n')
 	}
 
-	return result, nil
+	return &Result{
+		Output:         result,
+		SourcePort:     dr.SourcePort,
+		PrivilegedPort: dr.PrivilegedPort,
+		LocalUser:      localUser,
+		RemoteUser:     username,
+	}, nil
 }
 
 func ParseUserHost(userHost string) (username, hostname string, err error) {
