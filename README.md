@@ -52,6 +52,37 @@ claude mcp add -s user rsh-mcp -- ~/.local/bin/rsh-mcp
 need the privileged-port capability -- `setcap` attaches to a specific file,
 and `go run` compiles a fresh temporary binary on every invocation.)
 
+## Upgrading
+
+**`go build` silently removes the capability. Re-run `setcap` every time.**
+
+```bash
+git pull
+go build -o ~/.local/bin/rsh-mcp .
+sudo setcap cap_net_bind_service=+ep ~/.local/bin/rsh-mcp   # REQUIRED after every build
+getcap ~/.local/bin/rsh-mcp                                 # confirm: cap_net_bind_service=ep
+```
+
+`setcap` attaches to a specific file, and a rebuild replaces that file.
+Observed directly across the v1.1.0 -> v1.1.1 upgrade:
+
+```
+getcap before go build  ->  cap_net_bind_service=ep
+getcap after  go build  ->  (empty)
+getcap after  setcap    ->  cap_net_bind_service=ep
+```
+
+Skipping it leaves a binary that fails with
+
+```
+server closed connection without response (source port or host rejected?)
+```
+
+which looks exactly like the new version having broken something. It has not;
+the binary has simply been disarmed. This is the single most likely thing to go
+wrong during an upgrade, which is why it is here rather than only under
+installation.
+
 ## Testing with Inspector
 
 ```bash
