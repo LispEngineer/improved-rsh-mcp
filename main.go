@@ -30,7 +30,7 @@ import (
 )
 
 type ExecArgs struct {
-	Host      string `json:"host" jsonschema:"description:Remote hostname or IP address (optional if RSH_HOST is set)"`
+	Host      string `json:"host,omitempty" jsonschema:"description:Remote hostname or IP address (optional if RSH_HOST is set)"`
 	User      string `json:"user,omitempty" jsonschema:"description:Remote username (optional, defaults to RSH_USER env var, else the local user)"`
 	LocalUser string `json:"local_user,omitempty" jsonschema:"description:Local username sent in the RSH handshake (optional, defaults to RSH_LOCAL_USER env var, else the OS user); must match what the remote's proxy database trusts"`
 	Command   string `json:"command" jsonschema:"description:Command to execute on the remote host"`
@@ -42,7 +42,7 @@ type ExecArgs struct {
 }
 
 type ReadFileArgs struct {
-	Host      string `json:"host" jsonschema:"description:Remote hostname or IP address (optional if RSH_HOST is set)"`
+	Host      string `json:"host,omitempty" jsonschema:"description:Remote hostname or IP address (optional if RSH_HOST is set)"`
 	User      string `json:"user,omitempty" jsonschema:"description:Remote username (optional, defaults to RSH_USER env var, else the local user)"`
 	LocalUser string `json:"local_user,omitempty" jsonschema:"description:Local username sent in the RSH handshake (optional, defaults to RSH_LOCAL_USER env var, else the OS user)"`
 	Path      string `json:"path" jsonschema:"description:Path to the remote file to read"`
@@ -52,7 +52,7 @@ type ReadFileArgs struct {
 }
 
 type WriteFileArgs struct {
-	Host          string `json:"host" jsonschema:"description:Remote hostname or IP address (optional if RSH_HOST is set)"`
+	Host          string `json:"host,omitempty" jsonschema:"description:Remote hostname or IP address (optional if RSH_HOST is set)"`
 	User          string `json:"user,omitempty" jsonschema:"description:Remote username (optional, defaults to RSH_USER env var, else the local user)"`
 	LocalUser     string `json:"local_user,omitempty" jsonschema:"description:Local username sent in the RSH handshake (optional, defaults to RSH_LOCAL_USER env var, else the OS user)"`
 	Path          string `json:"path" jsonschema:"description:Path to the remote file to write"`
@@ -64,7 +64,7 @@ type WriteFileArgs struct {
 }
 
 type UploadFileArgs struct {
-	Host       string `json:"host" jsonschema:"description:Remote hostname or IP address (optional if RSH_HOST is set)"`
+	Host       string `json:"host,omitempty" jsonschema:"description:Remote hostname or IP address (optional if RSH_HOST is set)"`
 	User       string `json:"user,omitempty" jsonschema:"description:Remote username (optional, defaults to RSH_USER env var, else the local user)"`
 	LocalUser  string `json:"local_user,omitempty" jsonschema:"description:Local username sent in the RSH handshake (optional, defaults to RSH_LOCAL_USER env var, else the OS user)"`
 	LocalPath  string `json:"local_path" jsonschema:"description:Path to the local file to upload"`
@@ -74,7 +74,7 @@ type UploadFileArgs struct {
 }
 
 type DownloadFileArgs struct {
-	Host       string `json:"host" jsonschema:"description:Remote hostname or IP address (optional if RSH_HOST is set)"`
+	Host       string `json:"host,omitempty" jsonschema:"description:Remote hostname or IP address (optional if RSH_HOST is set)"`
 	User       string `json:"user,omitempty" jsonschema:"description:Remote username (optional, defaults to RSH_USER env var, else the local user)"`
 	LocalUser  string `json:"local_user,omitempty" jsonschema:"description:Local username sent in the RSH handshake (optional, defaults to RSH_LOCAL_USER env var, else the OS user)"`
 	RemotePath string `json:"remote_path" jsonschema:"description:Path to the remote file to download"`
@@ -100,7 +100,7 @@ func main() {
 
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    "rsh-mcp",
-		Version: "1.1.0",
+		Version: "1.1.1",
 	}, nil)
 
 	mcp.AddTool(server, &mcp.Tool{

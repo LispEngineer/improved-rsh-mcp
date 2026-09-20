@@ -116,17 +116,71 @@ to overwrite an existing local file unless `overwrite` is `true`.
 
 | Variable | Purpose |
 | :--- | :--- |
-| `RSH_HOST` | Default remote host |
+| `RSH_HOST` | Default remote host, used when a call omits `host`. **Fixed in v1.1.1** - see "RSH_HOST was unusable before v1.1.1" below. |
 | `RSH_PORT` | Default port (514, or a tunnel's local port e.g. 5141) |
 | `RSH_USER` | Default remote username |
 | `RSH_LOCAL_USER` | Local username sent in the RSH handshake (must match what the remote's proxy database trusts); defaults to the OS user |
 | `RSH_LOG_DIR` | Transfer log directory; falls back to `FTP_LOG_DIR`, `TELNET_LOG_DIR`, `SERIAL_LOG_DIR`, `./logs`, or `~/.mcp-rsh-logs` |
-| `RSH_REQUIRE_PRIVPORT` | `0`/`false` to allow an ephemeral source port instead of failing fast (default: require a privileged port) |
+| `RSH_REQUIRE_PRIVPORT` | Disables the client's own fail-fast check ONLY. It does **not** make the client bind an ephemeral port, so with `cap_net_bind_service` still attached a call sets this and succeeds anyway - see "Do not use RSH_REQUIRE_PRIVPORT to test the privileged-port requirement" below. |
 
 ## Flags
 
 - `-idle-timeout` - drop the connection after this much silence from the remote (default `5m`)
 - `-require-privileged-port` - same as `RSH_REQUIRE_PRIVPORT` (flag wins if both are set)
+
+## `RSH_HOST` was unusable before v1.1.1
+
+Every tool documented `host` as "optional if `RSH_HOST` is set", but the
+generated JSON schema marked it **required**, so a call omitting it was
+rejected by schema validation before the server ever read the environment:
+
+```
+validating "arguments": validating root: required: missing properties: ["host"]
+```
+
+`RSH_HOST` was therefore effectively dead for the host field, and a pinned
+client entry like
+
+```json
+"rsh-vax60": { "command": "rsh-mcp", "env": { "RSH_HOST": "192.168.3.201", ... } }
+```
+
+silently did not work the way it reads - every call still had to pass `host`
+explicitly.
+
+The cause was the Go struct tag: `json:"host"` without `,omitempty` marks a
+field required in the generated schema. Every other env-backed field
+(`user`, `local_user`, `port`, `log_dir`) already had `,omitempty`; `host`
+alone did not. Fixed by adding it to all five tool argument structs.
+
+Note the env-handling code itself was always correct - `firstOrEnv(args.Host,
+"RSH_HOST")` did the right thing and had simply never been reachable. A fix
+that only touched the env code would have looked right and changed nothing.
+
+Reported by the `vintagate` session, 2026-09-20.
+
+## Do not use `RSH_REQUIRE_PRIVPORT` to test the privileged-port requirement
+
+RSH requires the CLIENT to bind a source port below 1024, which is why this
+binary needs `cap_net_bind_service` (see above). `RSH_REQUIRE_PRIVPORT=0`
+disables **this program's own fail-fast check** and nothing else - it does not
+make the client bind an ephemeral port. So its observable effect depends
+entirely on whether the capability is attached:
+
+| Capability | `RSH_REQUIRE_PRIVPORT=0` | Result |
+| :--- | :--- | :--- |
+| attached | set | **succeeds** - a low port is still bound (1021 observed) |
+| removed | set | fails: `server closed connection without response` |
+
+It is neither a workaround for a missing capability nor a way to demonstrate
+that the source port matters. Setting it and observing success is a real,
+correct answer to a different question, and leads to the conclusion that the
+port is irrelevant - which is wrong.
+
+The comparison that does demonstrate the requirement is removing the
+capability: same binary, host, user and command, `sudo setcap -r`, and the
+call fails byte-identically to an ephemeral-port rejection. Measured
+2026-09-20.
 
 ## Notes
 
