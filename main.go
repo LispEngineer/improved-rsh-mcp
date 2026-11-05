@@ -100,7 +100,7 @@ func main() {
 
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    "rsh-mcp",
-		Version: "1.1.1",
+		Version: "1.1.2",
 	}, nil)
 
 	mcp.AddTool(server, &mcp.Tool{

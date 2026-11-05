@@ -1,5 +1,21 @@
 # Changelog
 
+## 1.1.2 - 2026-11-04
+**Contributors**: Douglas P. Fields, Jr. (`symbolics@lisp.engineer`)
+
+### Added
+- **`Makefile`**: `make install` builds the binary and runs `sudo setcap cap_net_bind_service=+ep` on it, after
+  explaining why sudo may ask for the user's password; `make build`, `make test`. A plain `go build` silently drops the
+  capability, so `make install` is now the documented way to install and upgrade.
+- **`NOTICE`** and **`LICENSE-APACHE-2.0.txt`**: our changes since upstream `31af750` are Apache-2.0.
+
+### Changed
+- The reserved-port error now says the binary lacks `cap_net_bind_service`, that a `go build` rebuild removes it, to use
+  `make install`, and names the real executable path in the `setcap` command (was `<this binary>`). New test
+  `TestDialWithoutCapabilityGivesSetcapHint`.
+- README: install and upgrade with `make install`; corrected the symptom of a missing capability (it is the
+  reserved-port error, not `server closed connection without response`).
+
 ## 1.1.0 - 2026-09-16
 **Contributors**: Douglas P. Fields, Jr. (`symbolics@lisp.engineer`)
 

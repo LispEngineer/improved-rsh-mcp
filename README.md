@@ -31,7 +31,8 @@ Improver: Douglas P. Fields, Jr. (`symbolics@lisp.engineer`), for the
 [VAXstation lab project](https://github.com/LispEngineer/vms-exploration)
 
 **Upstream license note**: as of this writing, [tenox7/rsh-mcp](https://github.com/tenox7/rsh-mcp)
-carries no `LICENSE` file. This fork is kept private pending that.
+carries no `LICENSE` file. This fork is kept private pending that. Our own changes (everything since upstream
+commit `31af750`) are licensed under the Apache License 2.0: see `NOTICE` and `LICENSE-APACHE-2.0.txt`.
 
 ---
 
@@ -42,11 +43,14 @@ RSH/RCP MCP server. Execute commands and transfer files on remote hosts via RSH/
 ## Usage with Claude Code
 
 ```bash
-go build -o ~/.local/bin/rsh-mcp .
-# rshd almost always requires a source port below 1024:
-sudo setcap cap_net_bind_service=+ep ~/.local/bin/rsh-mcp
+make install        # builds ~/.local/bin/rsh-mcp and runs setcap (sudo may ask for your password)
 claude mcp add -s user rsh-mcp -- ~/.local/bin/rsh-mcp
 ```
+
+rshd almost always requires a source port below 1024, so the binary needs the
+`cap_net_bind_service` capability. `make install` builds it and grants that
+capability with `sudo setcap`, saying first why sudo may ask for your login
+password. Install somewhere else with `make install BIN=/path/to/rsh-mcp`.
 
 (A prebuilt binary must be used rather than `go run .../rsh-mcp@latest` if you
 need the privileged-port capability -- `setcap` attaches to a specific file,
@@ -54,13 +58,12 @@ and `go run` compiles a fresh temporary binary on every invocation.)
 
 ## Upgrading
 
-**`go build` silently removes the capability. Re-run `setcap` every time.**
+**`go build` silently removes the capability. Upgrade with `make install`.**
 
 ```bash
 git pull
-go build -o ~/.local/bin/rsh-mcp .
-sudo setcap cap_net_bind_service=+ep ~/.local/bin/rsh-mcp   # REQUIRED after every build
-getcap ~/.local/bin/rsh-mcp                                 # confirm: cap_net_bind_service=ep
+make install                  # rebuilds and re-runs setcap
+getcap ~/.local/bin/rsh-mcp   # confirm: cap_net_bind_service=ep
 ```
 
 `setcap` attaches to a specific file, and a rebuild replaces that file.
@@ -72,16 +75,19 @@ getcap after  go build  ->  (empty)
 getcap after  setcap    ->  cap_net_bind_service=ep
 ```
 
-Skipping it leaves a binary that fails with
+A binary without the capability fails every call with (v1.1.2 and later):
 
 ```
-server closed connection without response (source port or host rejected?)
+cannot bind a reserved source port (512-1023): ... bind: permission denied --
+this binary lacks cap_net_bind_service (a rebuild with go build removes it;
+build with make install instead); run: sudo setcap cap_net_bind_service=+ep /path/to/rsh-mcp
 ```
 
-which looks exactly like the new version having broken something. It has not;
-the binary has simply been disarmed. This is the single most likely thing to go
-wrong during an upgrade, which is why it is here rather than only under
-installation.
+(Earlier versions of this README said the symptom was `server closed connection
+without response`. Tested 4-NOV-2026, that is wrong: a binary without the
+capability gives the reserved-port error above. `server closed connection` means
+the server accepted and then dropped the connection -- for example rshd not
+running yet, or no proxy entry for this client.)
 
 ## Testing with Inspector
 

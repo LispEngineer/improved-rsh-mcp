@@ -97,6 +97,37 @@ func TestDialToClosedPortFailsCleanly(t *testing.T) {
 	}
 }
 
+// When the test binary has no capability to bind ports 512-1023 (the normal
+// case for go test as an ordinary user), Dial must fail with the setcap hint
+// naming the real executable, not fall back or return a bare bind error.
+func TestDialWithoutCapabilityGivesSetcapHint(t *testing.T) {
+	probe, err := net.Listen("tcp", "127.0.0.1:1023")
+	if err == nil {
+		probe.Close()
+		t.Skip("this process can bind reserved ports (root or capability); hint path not reachable")
+	}
+	orig := RequirePrivilegedPort
+	RequirePrivilegedPort = true
+	defer func() { RequirePrivilegedPort = orig }()
+
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+
+	_, err = Dial("127.0.0.1", FormatPort(ln.Addr().(*net.TCPAddr).Port))
+	if err == nil {
+		t.Fatal("expected Dial without the capability to fail")
+	}
+	msg := err.Error()
+	for _, want := range []string{"cap_net_bind_service", "sudo setcap", "make install", executablePath()} {
+		if !strings.Contains(msg, want) {
+			t.Errorf("error %q does not mention %q", msg, want)
+		}
+	}
+}
+
 func TestDialSucceedsAgainstLocalListener(t *testing.T) {
 	orig := RequirePrivilegedPort
 	RequirePrivilegedPort = false

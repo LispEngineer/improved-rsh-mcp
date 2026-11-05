@@ -73,9 +73,10 @@ func Dial(hostname, port string) (*DialResult, error) {
 	if RequirePrivilegedPort {
 		return nil, fmt.Errorf(
 			"cannot bind a reserved source port (512-1023): %w -- "+
-				"run: sudo setcap cap_net_bind_service=+ep <this binary> "+
+				"this binary lacks cap_net_bind_service (a rebuild with go build removes it; "+
+				"build with make install instead); run: sudo setcap cap_net_bind_service=+ep %s "+
 				"(or set RSH_REQUIRE_PRIVPORT=0 to probe without one)",
-			lastErr)
+			lastErr, executablePath())
 	}
 	d.LocalAddr = nil
 	conn, err := d.Dial("tcp", addr)
@@ -87,6 +88,15 @@ func Dial(hostname, port string) (*DialResult, error) {
 		localPort = ta.Port
 	}
 	return &DialResult{Conn: idleConn{conn}, SourcePort: localPort, PrivilegedPort: false}, nil
+}
+
+// executablePath names this binary for the setcap hint, falling back to a
+// placeholder when the OS cannot say.
+func executablePath() string {
+	if p, err := os.Executable(); err == nil {
+		return p
+	}
+	return "<this binary>"
 }
 
 func portUnavailable(err error) bool {
