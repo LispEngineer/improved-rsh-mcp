@@ -119,6 +119,10 @@ func TestLiveVMS(t *testing.T) {
 				t.Errorf("RSH_SHELL=login default: %s", text(res))
 			}
 
+			// The service's session limit explains any refused concurrent call.
+			svc := execOK("TCPIP SHOW SERVICE RSH/FULL", "grep", "(?i)limit|state|port")
+			t.Logf("RSH service: %q", strings.TrimSpace(svc))
+
 			// 4. Four calls at once.
 			var wg sync.WaitGroup
 			errs := make(chan string, 4)
