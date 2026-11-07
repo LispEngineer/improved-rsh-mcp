@@ -21,6 +21,13 @@
   (OpenVMS file specs). `local_user`, `log_dir` and the env defaults on the new tools; they are logged
   (`DOWNLOAD-MANY`, `UPLOAD-MANY`), and `exec` log entries carry the exit status.
 - `write` text result now gives the byte count and SHA-256.
+- OpenVMS fixes found by the live test (VAX96, 7-NOV): `exec` output lines ending CR CR LF, or a final bare CR, now end
+  in LF; with `shell` `login`, `download` uses one rcp session per path (TCPIP$RCP takes one source spec per command;
+  wildcards work) and `upload` one per file with the full target name (TCPIP$RCP rejects `rcp -t -d` with
+  `RCP-E-AMBITGT`).
+- `live_test.go` (build tag `live`): exec, long output, tail, grep, `RSH_SHELL`, concurrency, every transfer tool, against
+  real OpenVMS hosts. Passed 7-NOV-2026 on VAX96 (VAX/VMS 7.3), VAXVLC (VAX/VMS 7.3, TCP/IP V5.3) and AXP3 (Alpha
+  V7.3-2). Their RSH services allow 3 sessions at once, so a 4th simultaneous call is refused by the server.
 - Tests for the MCP tools (`main_test.go`, in-memory client) and for `exec`'s sh mode, grep, timeout and CR LF.
 
 ### Changed
