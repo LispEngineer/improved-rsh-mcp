@@ -1,16 +1,21 @@
 # Improved rsh-mcp
 
-Improvements:
+A fork of [tenox7/rsh-mcp](https://github.com/tenox7/rsh-mcp), merged with
+upstream `master` at `d9b7819` (7-NOV-2026), with these additions:
 
 * Persistent transfer audit logging (`rsh_transfers.log`) with timestamps, source
-  ports, byte counts, durations, and SHA-256 integrity hashes
+  ports, byte counts, durations, exit status and SHA-256 integrity hashes
 * Binary-safe `read`/`write` via base64 (`encoding`/`content_base64`), instead of
   corrupting non-UTF-8 files as text
-* New `upload-file` / `download-file` tools that stream directly to/from disk,
-  so large transfers never round-trip through the model context
+* `upload-file` / `download-file` tools that stream one file directly to/from
+  disk with a SHA-256 and overwrite protection, so large transfers never
+  round-trip through the model context (alongside upstream's multi-file
+  `upload` / `download`)
 * Environment-variable defaults (`RSH_HOST`, `RSH_PORT`, `RSH_USER`,
-  `RSH_LOCAL_USER`, `RSH_LOG_DIR`) so a single `.mcp.json` entry can be
-  pre-pointed at one host
+  `RSH_LOCAL_USER`, `RSH_SHELL`, `RSH_LOG_DIR`) so a single `.mcp.json` entry
+  can be pre-pointed at one host; `local_user` on every tool
+* `shell` `login` also for `upload` / `download`, sending remote paths
+  unquoted, so OpenVMS file specs (`SYS$SYSDEVICE:[DIR]FILE.TXT;1`) work
 * `port` accepts a JSON string or number (some MCP clients send tool arguments
   as native numbers, which the upstream schema rejected)
 * Fail-fast privileged-port handling: refuses with a `setcap` hint instead of
@@ -20,19 +25,13 @@ Improvements:
 * Correctly reports OpenVMS `TCPIP$RCP` error lines (`%FACILITY-E-IDENT, ...`,
   sent without the BSD status-byte prefix) as clear remote errors
   instead of "unexpected control message"
-* Fixed an off-by-one in `exec`'s `tail`/`max_lines` truncation when output
-  ends in a newline (the common case), which previously dropped one real
-  line in favor of a spurious empty one
-* Test suite (`go test ./...`) covering the protocol client against an
-  in-process fake `rshd`, including binary round trips, warning/error/
-  directory control lines, and overwrite protection
+* `exec` and `read` return their text only, so clients that prefer structured
+  results (Claude Code) show the output (see "What each tool returns")
+* `make install` (build + `setcap`) and a test suite (`go test ./...`) covering
+  the protocol client and the MCP tools against an in-process fake `rshd`
 
 Improver: Douglas P. Fields, Jr. (`symbolics@lisp.engineer`), for the
 [VAXstation lab project](https://github.com/LispEngineer/vms-exploration)
-
-**Upstream license note**: as of this writing, [tenox7/rsh-mcp](https://github.com/tenox7/rsh-mcp)
-carries no `LICENSE` file. This fork is kept private pending that. Our own changes (everything since upstream
-commit `31af750`) are licensed under the Apache License 2.0: see `NOTICE` and `LICENSE-APACHE-2.0.txt`.
 
 ---
 
@@ -109,12 +108,39 @@ override the transfer log location for that call.
 
 ### exec
 
-Execute a command on a remote host via RSH (single TCP connection).
+Execute a command on a remote host via RSH (single TCP connection). Returns its output (stdout and stderr) and, with `shell` `sh`, its exit status.
 
-- `command` - Command to execute
+- `command` - Command to execute; with `shell` `sh` it may have several lines
+- `shell` - `sh` or `login` (optional; defaults to `RSH_SHELL`, else `sh`; see below). **OpenVMS needs `login`**: set `RSH_SHELL=login` in the server's environment
+- `timeout` - Seconds before the call returns the output so far (optional); the command may go on running
+- `grep` - Return only the lines that match this regular expression, Go syntax (optional)
 - `max_lines` - Maximum lines of output (optional, defaults to 1000)
 - `max_bytes` - Maximum bytes of output (optional, defaults to 100000)
 - `tail` - Return last N lines instead of first N (optional)
+
+With `shell` `sh`, the command is sent as a script to `/bin/sh` on its standard input, so the login shell (sh, ksh, csh) never parses it. Quotes, `!`, comments and here-documents work the same everywhere, the command reads `/dev/null` as its input, and the exit status comes back. Windows NT has no `/bin/sh`, but [ntrshd](https://github.com/tenox7/ntrshd) 1.2 and later read that script themselves: they run the command with `cmd /c` (several lines become one command line, joined with `&`) and send the exit status back the same way, so `exec` needs no options there either. An older NT rshd answers that it doesn't know `sh`; then nothing runs and `exec` says so. `login` passes the command to the login shell as it is, with no exit status: use it for other hosts without `/bin/sh`, or an older NT rshd.
+
+Output comes back with plain newlines: CRLF line ends become LF, so `grep` works the same on NT output.
+
+`grep` filters here, not on the remote host, so it works with old tools and saves output.
+
+### download
+
+Copy files from a remote host to a local folder via RCP: many at once, binary files too.
+
+- `paths` - Remote files; `*` and `?` work as in the remote shell
+- `to` - Local folder (absolute path), made if missing
+- `recursive` - Copy folders with everything in them (optional)
+- `shell` - `sh` (default, or `RSH_SHELL`) quotes unusual paths for `/bin/sh`; `login` sends them exactly as given, as OpenVMS needs (`SYS$SYSDEVICE:[DIR]FILE.TXT;1`)
+
+### upload
+
+Copy local files to a remote host via RCP: many at once, binary files too. File modes are kept.
+
+- `paths` - Local files (absolute paths); folders need `recursive`
+- `to` - Remote folder; for one file it may also be the new file name
+- `recursive` - Copy folders with everything in them (optional)
+- `shell` - as for `download`
 
 ### read
 
@@ -149,6 +175,21 @@ to overwrite an existing local file unless `overwrite` is `true`.
 - `local_path` - Destination path on the local filesystem
 - `overwrite` - Allow overwriting an existing local file (optional, default `false`)
 
+### version
+
+Report the server version and Go build info (module, Go version, VCS revision).
+
+### What each tool returns
+
+`exec` and `read` return only text: the output or file contents (plus, for
+`exec`, the grep/cut/timeout notes and `exit status N`). The connection
+details (source port, users, byte count, SHA-256, duration) go to the transfer
+log. They used to come back as a structured result too, but MCP clients that
+show `structuredContent` in place of the text, Claude Code among them, then
+showed only that bookkeeping and never the command output (fixed in 1.2.0).
+`write`, `upload-file` and `download-file` still return a structured result
+(bytes, SHA-256, source port, log file), since their text is only a summary.
+
 ## Environment variables
 
 | Variable | Purpose |
@@ -156,6 +197,7 @@ to overwrite an existing local file unless `overwrite` is `true`.
 | `RSH_HOST` | Default remote host, used when a call omits `host`. **Fixed in v1.1.1** - see "RSH_HOST was unusable before v1.1.1" below. |
 | `RSH_PORT` | Default port (514, or a tunnel's local port e.g. 5141) |
 | `RSH_USER` | Default remote username |
+| `RSH_SHELL` | Default `shell` for `exec`, `download` and `upload`: `sh` (default) or `login`. Use `login` for OpenVMS and other hosts without `/bin/sh` |
 | `RSH_LOCAL_USER` | Local username sent in the RSH handshake (must match what the remote's proxy database trusts); defaults to the OS user |
 | `RSH_LOG_DIR` | Transfer log directory; falls back to `FTP_LOG_DIR`, `TELNET_LOG_DIR`, `SERIAL_LOG_DIR`, `./logs`, or `~/.mcp-rsh-logs` |
 | `RSH_REQUIRE_PRIVPORT` | Disables the client's own fail-fast check ONLY. It does **not** make the client bind an ephemeral port, so with `cap_net_bind_service` still attached a call sets this and succeeds anyway - see "Do not use RSH_REQUIRE_PRIVPORT to test the privileged-port requirement" below. |
@@ -221,7 +263,7 @@ call fails byte-identically to an ephemeral-port rejection. Measured
 
 ## Notes
 
-**File editing:** rsh-mcp provides read/write via RCP copy in/out. For effective editing, work locally then copy over, or mount workspace via NFS/SMB.
+**File editing:** rsh-mcp provides read/write via RCP copy in/out. For effective editing, work locally then copy over with upload, or mount workspace via NFS/SMB.
 
 **Privileged port:** Most RSH/RCP servers require a source port below 1024. Grant
 the built binary `cap_net_bind_service` (see above) rather than running as root.
@@ -235,3 +277,7 @@ ephemeral port on the far end, which most `rshd` servers reject). A small
 in the companion lab repo for a worked example.
 
 **Windows NT:** If you need an RSH/RCP server for Windows NT check out [NTRSHD](https://github.com/tenox7/ntrshd)
+
+## License
+
+MIT, see [LICENSE](LICENSE).

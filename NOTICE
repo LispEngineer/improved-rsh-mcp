@@ -1,21 +1,13 @@
 improved-rsh-mcp
-Copyright 2026 Douglas P. Fields, Jr. (symbolics@lisp.engineer)
 
-This product is a modified version of rsh-mcp by Antoni Sawicki
-(https://github.com/tenox7/rsh-mcp), based on upstream commit
-31af750a98d304cbf9a56e2615e37eda96081615. The upstream code carries no
-licence of its own; its copyright remains with its author.
+A modified version of rsh-mcp by Antoni Sawicki
+(https://github.com/tenox7/rsh-mcp), merged with upstream master at commit
+d9b7819b1ae1a4b4cecf491c668023e286507a2c.
 
-The modifications made since that commit (transfer logging, binary-safe and
-streaming file transfers, privileged source-port handling, environment
-defaults, the Makefile, tests and documentation) are Copyright 2026
-Douglas P. Fields, Jr. and are licensed under the Apache License, Version 2.0
-(the "License"); you may not use them except in compliance with the License.
-A copy of the License is in LICENSE-APACHE-2.0.txt, or at
-http://www.apache.org/licenses/LICENSE-2.0
+Copyright (c) 2025-2026 Antoni Sawicki
+Copyright (c) 2026 Douglas P. Fields, Jr. (symbolics@lisp.engineer)
 
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
+The whole work, upstream code and our modifications alike, is licensed under
+the MIT License: see LICENSE. (Our modifications were licensed Apache-2.0
+from 4-NOV-2026, while upstream carried no licence; they were relicensed
+MIT on 7-NOV-2026, after upstream added its MIT licence.)

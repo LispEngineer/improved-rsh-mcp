@@ -64,6 +64,7 @@ type Entry struct {
 	Status         string // SUCCESS or FAILED
 	Error          string
 	OutputPreview  string // exec only: first N lines of output
+	Exit           string // exec only: exit status, or why there is none
 }
 
 // FormatBytes renders a byte count the way a human would read it.
@@ -176,6 +177,9 @@ func (l *Logger) Write(e Entry) error {
 			rate = " (" + FormatBytes(int64(bps)) + "/s)"
 		}
 		fmt.Fprintf(&b, "Duration     : %s ms%s\n", strconv.FormatInt(e.DurationMs, 10), rate)
+	}
+	if e.Exit != "" {
+		fmt.Fprintf(&b, "Exit Status  : %s\n", e.Exit)
 	}
 	if e.OutputPreview != "" {
 		fmt.Fprintf(&b, "Output       :\n%s\n", sanitize(e.OutputPreview))

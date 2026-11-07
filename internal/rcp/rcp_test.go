@@ -111,7 +111,7 @@ func TestUploadDownloadStreaming(t *testing.T) {
 	go f.serveOne(t)
 	host, port := f.addr()
 
-	upRes, err := Upload(host, "USER1", "dfields", localIn, "REMOTE.BIN", port)
+	upRes, err := UploadFile(host, "USER1", "dfields", localIn, "REMOTE.BIN", port)
 	if err != nil {
 		t.Fatalf("Upload: %v", err)
 	}
@@ -125,7 +125,7 @@ func TestUploadDownloadStreaming(t *testing.T) {
 	go f.serveOne(t)
 
 	localOut := filepath.Join(dir, "out.bin")
-	downRes, err := Download(host, "USER1", "dfields", "REMOTE.BIN", port, localOut, false)
+	downRes, err := DownloadFile(host, "USER1", "dfields", "REMOTE.BIN", port, localOut, false)
 	if err != nil {
 		t.Fatalf("Download: %v", err)
 	}
@@ -154,7 +154,7 @@ func TestDownloadRefusesOverwriteByDefault(t *testing.T) {
 	go f.serveOne(t)
 	host, port := f.addr()
 
-	_, err := Download(host, "USER1", "dfields", "ANY.TXT", port, existing, false)
+	_, err := DownloadFile(host, "USER1", "dfields", "ANY.TXT", port, existing, false)
 	if err == nil {
 		t.Fatal("expected Download to refuse overwriting an existing file")
 	}
@@ -217,7 +217,7 @@ func TestControlLineOpenVMSErrorRecognized(t *testing.T) {
 
 func TestUploadRejectsDirectory(t *testing.T) {
 	dir := t.TempDir()
-	_, err := Upload("127.0.0.1", "USER1", "dfields", dir, "REMOTE", "1")
+	_, err := UploadFile("127.0.0.1", "USER1", "dfields", dir, "REMOTE", "1")
 	if err == nil {
 		t.Fatal("expected Upload to reject a directory as the local path")
 	}

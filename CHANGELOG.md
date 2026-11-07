@@ -1,5 +1,35 @@
 # Changelog
 
+## 1.2.0 - 2026-11-07
+**Contributors**: Douglas P. Fields, Jr. (`symbolics@lisp.engineer`); upstream changes by Antoni Sawicki
+
+### Merged from upstream (tenox7/rsh-mcp `master` at `d9b7819`)
+- `exec` runs the command as a `/bin/sh` script and returns its **exit status**; new `shell` (`sh`/`login`), `timeout`
+  and `grep` arguments; CR LF output becomes LF; Windows NT via ntrshd 1.2 or later.
+- Multi-file **`download` / `upload`** tools (wildcards, `recursive`, folders), and a **`version`** tool.
+- `Dial` tries reserved source ports in a **random order**, with up to 4 connection attempts, so concurrent sessions
+  and quick reconnects do not collide in TIME_WAIT.
+- **MIT `LICENSE`**.
+
+### Fixed
+- **`exec` and `read` output was not shown in Claude Code**: they returned the text and a structured bookkeeping
+  result, and Claude Code shows `structuredContent` in place of the text, so only the bookkeeping appeared. They now
+  return text only; the bookkeeping still goes to `rsh_transfers.log`. Test `TestExecReturnsOutputAsTextOnly`.
+
+### Added
+- `RSH_SHELL` sets the default `shell`; `shell` on `download`/`upload` too, where `login` sends remote paths unquoted
+  (OpenVMS file specs). `local_user`, `log_dir` and the env defaults on the new tools; they are logged
+  (`DOWNLOAD-MANY`, `UPLOAD-MANY`), and `exec` log entries carry the exit status.
+- `write` text result now gives the byte count and SHA-256.
+- Tests for the MCP tools (`main_test.go`, in-memory client) and for `exec`'s sh mode, grep, timeout and CR LF.
+
+### Changed
+- **Licence: our changes are now MIT** (were Apache-2.0); `LICENSE` names both copyright holders; `NOTICE` rewritten;
+  `LICENSE-APACHE-2.0.txt` removed.
+- Our single-file functions are `rcp.UploadFile` / `rcp.DownloadFile` (upstream's multi-file ones keep `Upload` /
+  `Download`). The tool names `upload-file` / `download-file` are unchanged.
+- Version comes from the Go build info, else `1.2.0`.
+
 ## 1.1.2 - 2026-11-04
 **Contributors**: Douglas P. Fields, Jr. (`symbolics@lisp.engineer`)
 

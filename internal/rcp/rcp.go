@@ -106,7 +106,7 @@ func controlLine(conn io.Writer, r *bufio.Reader) (mode string, size int64, name
 // copying its bytes into dest and returning its reported mode, the byte
 // count, and a SHA-256 digest computed while streaming (never buffering the
 // file twice).
-func receive(dr *rcmd.DialResult, dest io.Writer) (mode string, n int64, sum string, err error) {
+func receiveFile(dr *rcmd.DialResult, dest io.Writer) (mode string, n int64, sum string, err error) {
 	conn := dr.Conn
 	r := bufio.NewReader(conn)
 	if err = rcmd.ReadAck(r); err != nil {
@@ -143,7 +143,7 @@ func receive(dr *rcmd.DialResult, dest io.Writer) (mode string, n int64, sum str
 // send runs the "source" side of an rcp transfer for exactly one file of
 // known size, streaming from src (never loading the whole file into memory
 // twice) and returning the byte count and a SHA-256 digest of what was sent.
-func send(dr *rcmd.DialResult, remotePath string, mode os.FileMode, size int64, src io.Reader) (n int64, sum string, err error) {
+func sendFile(dr *rcmd.DialResult, remotePath string, mode os.FileMode, size int64, src io.Reader) (n int64, sum string, err error) {
 	conn := dr.Conn
 	r := bufio.NewReader(conn)
 	if err = rcmd.ReadAck(r); err != nil {
@@ -205,7 +205,7 @@ func ReadFile(hostname, username, localUser, remotePath, port string) (*Result, 
 	}
 
 	var buf bytes.Buffer
-	mode, n, sum, err := receive(dr, &buf)
+	mode, n, sum, err := receiveFile(dr, &buf)
 	if err != nil {
 		return nil, fmt.Errorf("rcp read %s: %w", hostname, err)
 	}
@@ -232,7 +232,7 @@ func WriteFile(hostname, username, localUser, remotePath, port string, content [
 		return nil, err
 	}
 
-	n, sum, err := send(dr, remotePath, mode, int64(len(content)), bytes.NewReader(content))
+	n, sum, err := sendFile(dr, remotePath, mode, int64(len(content)), bytes.NewReader(content))
 	if err != nil {
 		return nil, fmt.Errorf("rcp write %s: %w", hostname, err)
 	}
@@ -243,12 +243,12 @@ func WriteFile(hostname, username, localUser, remotePath, port string, content [
 	}, nil
 }
 
-// Download reads remotePath and streams it directly to localPath, without
+// DownloadFile reads remotePath and streams it directly to localPath, without
 // holding the whole file in memory. It refuses to overwrite an existing
 // local file unless overwrite is true, and writes to a temporary file in
 // the same directory first, renaming into place only on success, so a
 // failed transfer never leaves a truncated file at localPath.
-func Download(hostname, username, localUser, remotePath, port, localPath string, overwrite bool) (*Result, error) {
+func DownloadFile(hostname, username, localUser, remotePath, port, localPath string, overwrite bool) (*Result, error) {
 	username, localUser, err := resolveUsers(username, localUser)
 	if err != nil {
 		return nil, err
@@ -286,7 +286,7 @@ func Download(hostname, username, localUser, remotePath, port, localPath string,
 		}
 	}()
 
-	_, n, sum, err := receive(dr, tmp)
+	_, n, sum, err := receiveFile(dr, tmp)
 	if err != nil {
 		return nil, fmt.Errorf("rcp download %s: %w", hostname, err)
 	}
@@ -305,9 +305,9 @@ func Download(hostname, username, localUser, remotePath, port, localPath string,
 	}, nil
 }
 
-// Upload streams localPath to remotePath without holding the whole file in
+// UploadFile streams localPath to remotePath without holding the whole file in
 // memory.
-func Upload(hostname, username, localUser, localPath, remotePath, port string) (*Result, error) {
+func UploadFile(hostname, username, localUser, localPath, remotePath, port string) (*Result, error) {
 	username, localUser, err := resolveUsers(username, localUser)
 	if err != nil {
 		return nil, err
@@ -335,7 +335,7 @@ func Upload(hostname, username, localUser, localPath, remotePath, port string) (
 		return nil, err
 	}
 
-	n, sum, err := send(dr, remotePath, info.Mode(), info.Size(), f)
+	n, sum, err := sendFile(dr, remotePath, info.Mode(), info.Size(), f)
 	if err != nil {
 		return nil, fmt.Errorf("rcp upload %s: %w", hostname, err)
 	}
