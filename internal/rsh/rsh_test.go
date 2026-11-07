@@ -147,13 +147,13 @@ func TestExecuteShReturnsExitStatus(t *testing.T) {
 }
 
 func TestExecuteCRLFNormalised(t *testing.T) {
-	host, port, _ := fakeRshd(t, fixed("a\r\nb\r\n"))
+	host, port, _ := fakeRshd(t, fixed("a\r\nb\r\r\n\r"))
 	res, err := Execute(context.Background(), Options{Host: host, User: "u", LocalUser: "l", Port: port, Command: "x", Shell: "login"})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(res.Output) != "a\nb\n" {
-		t.Errorf("Output = %q, want CR LF turned into LF", res.Output)
+	if string(res.Output) != "a\nb\n\n" {
+		t.Errorf("Output = %q, want CR LF, CR CR LF and a final CR turned into LF", res.Output)
 	}
 }
 

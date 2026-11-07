@@ -44,7 +44,46 @@ const (
 	QuoteNone
 )
 
+// Download copies remote files into localDir. With QuoteNone (a remote
+// without /bin/sh) each path gets its own rcp session, because some rcp
+// servers (OpenVMS TCPIP$RCP) take only one source spec per command;
+// wildcards within one spec still work.
 func Download(ctx context.Context, hostname, username, localUser, port string, paths []string, localDir string, recursive bool, q Quoting) (*Report, error) {
+	if q == QuoteNone && len(paths) > 1 {
+		var all *Report
+		for _, p := range paths {
+			rep, err := download(ctx, hostname, username, localUser, port, []string{p}, localDir, recursive, q)
+			all = merge(all, rep, p, err)
+			if ctx.Err() != nil {
+				return all, errors.New("cancelled")
+			}
+		}
+		return all, nil
+	}
+	return download(ctx, hostname, username, localUser, port, paths, localDir, recursive, q)
+}
+
+// merge adds one session's report to the running total; a session that
+// failed outright becomes an error line, so the other paths still count.
+func merge(all, rep *Report, path string, err error) *Report {
+	if all == nil {
+		all = &Report{}
+	}
+	if rep != nil {
+		all.Files = append(all.Files, rep.Files...)
+		all.Errors = append(all.Errors, rep.Errors...)
+		if all.SourcePort == 0 {
+			all.SourcePort, all.PrivilegedPort = rep.SourcePort, rep.PrivilegedPort
+			all.LocalUser, all.RemoteUser = rep.LocalUser, rep.RemoteUser
+		}
+	}
+	if err != nil {
+		all.Errors = append(all.Errors, path+": "+err.Error())
+	}
+	return all
+}
+
+func download(ctx context.Context, hostname, username, localUser, port string, paths []string, localDir string, recursive bool, q Quoting) (*Report, error) {
 	if err := os.MkdirAll(localDir, 0755); err != nil {
 		return nil, err
 	}
@@ -127,7 +166,42 @@ func receive(conn net.Conn, r *bufio.Reader, path string, mode os.FileMode, size
 	return ack(conn)
 }
 
+// Upload copies local files to remoteTarget. With QuoteNone (a remote
+// without /bin/sh) each file gets its own rcp session with the full
+// target name (remoteTarget, plus the file's name when remoteTarget
+// names a folder or there are several files), because some rcp servers
+// (OpenVMS TCPIP$RCP) reject the multi-file "-d" form as an ambiguous
+// target. Folders are not supported that way.
 func Upload(ctx context.Context, hostname, username, localUser, port string, paths []string, remoteTarget string, recursive bool, q Quoting) (*Report, error) {
+	if q == QuoteNone {
+		toDir := len(paths) > 1 || strings.HasSuffix(remoteTarget, "/") || strings.ContainsAny(remoteTarget[len(remoteTarget)-1:], "]>:")
+		var all *Report
+		for _, p := range paths {
+			if st, err := os.Stat(p); err != nil {
+				return nil, err
+			} else if st.IsDir() {
+				return nil, fmt.Errorf("%s is a folder: folders can not be copied with shell login", p)
+			}
+			target := remoteTarget
+			if toDir {
+				sep := ""
+				if !strings.ContainsAny(remoteTarget[len(remoteTarget)-1:], "]>:/") {
+					sep = "/"
+				}
+				target = remoteTarget + sep + filepath.Base(p)
+			}
+			rep, err := upload(ctx, hostname, username, localUser, port, []string{p}, target, false, q)
+			all = merge(all, rep, p, err)
+			if ctx.Err() != nil {
+				return all, errors.New("cancelled")
+			}
+		}
+		return all, nil
+	}
+	return upload(ctx, hostname, username, localUser, port, paths, remoteTarget, recursive, q)
+}
+
+func upload(ctx context.Context, hostname, username, localUser, port string, paths []string, remoteTarget string, recursive bool, q Quoting) (*Report, error) {
 	toDir := len(paths) > 1
 	for _, p := range paths {
 		st, err := os.Stat(p)

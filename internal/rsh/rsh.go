@@ -58,6 +58,10 @@ type Result struct {
 
 const ExitUnknown = -1
 
+// crlf matches a line end with any carriage returns before it: CR LF from
+// NT, CR CR LF, and the bare CR OpenVMS DCL can end its output with.
+var crlf = regexp.MustCompile("\r+(\n|\\z)")
+
 func Execute(ctx context.Context, o Options) (*Result, error) {
 	grep, err := compileGrep(o.Grep)
 	if err != nil {
@@ -107,7 +111,7 @@ func Execute(ctx context.Context, o Options) (*Result, error) {
 	if ctx.Err() != nil {
 		return nil, errors.New("cancelled")
 	}
-	output = bytes.ReplaceAll(output, []byte("\r\n"), []byte("\n"))
+	output = crlf.ReplaceAll(output, []byte("\n"))
 
 	res := &Result{ExitStatus: ExitUnknown, TimedOut: timedOut,
 		SourcePort: dr.SourcePort, PrivilegedPort: dr.PrivilegedPort, LocalUser: localUser, RemoteUser: o.User}
